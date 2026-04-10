@@ -8,28 +8,21 @@ variable "required_terraform_version" {
   default     = "1.5.0"
 }
 
-variable "required_ansible_version" {
-  description = "Minimum Ansible version"
-  type        = string
-  default     = "2.14.0"
-}
-
 variable "backend_bucket_name" {
   description = "Existing GCS bucket used for Terraform backend"
   type        = string
-  default     = "backendformytf"
+  default     = "Lizzo-Pics-STorage"
 }
 
 variable "expected_gcp_project" {
   description = "Expected active GCP project for the lab"
   type        = string
-  default     = "thailand-433607"
+  default     = "Lizzo-Luvs-You-6969"
 }
 
 resource "terraform_data" "preflight_gate" {
   input = {
     required_terraform_version = var.required_terraform_version
-    required_ansible_version   = var.required_ansible_version
     backend_bucket_name        = var.backend_bucket_name
     expected_gcp_project       = var.expected_gcp_project
     always_run                 = timestamp()
@@ -42,7 +35,6 @@ resource "terraform_data" "preflight_gate" {
       set -euo pipefail
 
       REQUIRED_TERRAFORM="${self.input.required_terraform_version}"
-      REQUIRED_ANSIBLE="${self.input.required_ansible_version}"
       BACKEND_BUCKET="${self.input.backend_bucket_name}"
       EXPECTED_PROJECT="${self.input.expected_gcp_project}"
 
@@ -55,7 +47,7 @@ resource "terraform_data" "preflight_gate" {
       echo "========================================="
 
       echo ""
-      echo "[1/7] Checking Terraform..."
+      echo "[1/6] Checking Terraform..."
       command -v terraform >/dev/null 2>&1 || {
         echo "❌ Terraform is not installed"
         exit 1
@@ -69,7 +61,7 @@ resource "terraform_data" "preflight_gate" {
       echo "✅ Terraform version $TF_INSTALLED is valid"
 
       echo ""
-      echo "[2/7] Checking gcloud..."
+      echo "[2/6] Checking gcloud..."
       command -v gcloud >/dev/null 2>&1 || {
         echo "❌ gcloud CLI is not installed"
         exit 1
@@ -77,7 +69,7 @@ resource "terraform_data" "preflight_gate" {
       echo "✅ gcloud is installed"
 
       echo ""
-      echo "[3/7] Checking ADC authentication..."
+      echo "[3/6] Checking ADC authentication..."
       gcloud auth application-default print-access-token >/dev/null 2>&1 || {
         echo "❌ ADC is not configured"
         echo "Run: gcloud auth application-default login"
@@ -86,7 +78,7 @@ resource "terraform_data" "preflight_gate" {
       echo "✅ ADC authentication is working"
 
       echo ""
-      echo "[4/7] Checking Git..."
+      echo "[4/6] Checking Git..."
       command -v git >/dev/null 2>&1 || {
         echo "❌ Git is not installed"
         exit 1
@@ -94,7 +86,7 @@ resource "terraform_data" "preflight_gate" {
       echo "✅ Git is installed"
 
       echo ""
-      echo "[5/7] Checking kubectl..."
+      echo "[5/6] Checking kubectl..."
       command -v kubectl >/dev/null 2>&1 || {
         echo "❌ kubectl is not installed"
         exit 1
@@ -102,21 +94,7 @@ resource "terraform_data" "preflight_gate" {
       echo "✅ kubectl is installed"
 
       echo ""
-      echo "[6/7] Checking Ansible..."
-      command -v ansible >/dev/null 2>&1 || {
-        echo "❌ Ansible is not installed"
-        exit 1
-      }
-
-      ANSIBLE_INSTALLED="$(ansible --version | head -n 1 | awk '{print $2}')"
-      version_ge "$REQUIRED_ANSIBLE" "$ANSIBLE_INSTALLED" || {
-        echo "❌ Ansible version $ANSIBLE_INSTALLED is too old. Required: $REQUIRED_ANSIBLE+"
-        exit 1
-      }
-      echo "✅ Ansible version $ANSIBLE_INSTALLED is valid"
-
-      echo ""
-      echo "[7/7] Checking backend bucket and project..."
+      echo "[6/6] Checking backend bucket and project..."
       ACTIVE_PROJECT="$(gcloud config get-value project 2>/dev/null | tr -d '[:space:]')"
 
       [ "$ACTIVE_PROJECT" = "$EXPECTED_PROJECT" ] || {
