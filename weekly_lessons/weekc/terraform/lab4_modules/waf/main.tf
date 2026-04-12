@@ -62,49 +62,114 @@ resource "google_compute_backend_service" "secured_backend" {
 }
 
 
+resource "google_compute_security_policy" "waf" {
+  name = "${var.name}-policy"
 
-variable "name" {
-  type = string
+  dynamic "rule" {
+    for_each = var.enable_geo_blocking && length(var.blocked_region_codes) > 0 ? [1] : []
+    content {
+      priority = 1000
+      action   = "deny(403)"
+      description = "Block selected geographies"
+
+      match {
+        expr {
+          expression = "has(request.headers['host']) && origin.region_code in ['${join(\"','\", var.blocked_region_codes)}']"
+        }
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.enable_rate_limit ? [1] : []
+    content {
+      priority = 2000
+      action   = "throttle"
+      description = "Basic rate limiting"
+
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = ["*"]
+        }
+      }
+
+      rate_limit_options {
+        conform_action = "allow"
+        exceed_action  = "deny(429)"
+
+        rate_limit_threshold {
+          count        = var.rate_limit_count
+          interval_sec = var.rate_limit_interval_sec
+        }
+
+        enforce_on_key = "IP"
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.enable_waf_rules ? [1] : []
+    content {
+      priority = 3000
+      action   = "deny(403)"
+      description = "Block SQL injection"
+
+      match {
+        expr {
+          expression = "evaluatePreconfiguredExpr('sqli-v33-stable', {'sensitivity': 1})"
+        }
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.enable_waf_rules ? [1] : []
+    content {
+      priority = 3100
+      action   = "deny(403)"
+      description = "Block XSS"
+
+      match {
+        expr {
+          expression = "evaluatePreconfiguredExpr('xss-v33-stable', {'sensitivity': 1})"
+        }
+      }
+    }
+  }
+
+  # Bot management placeholder:
+  # enable only after reCAPTCHA Enterprise is configured
+  dynamic "rule" {
+    for_each = var.enable_bot_management && var.recaptcha_redirect_site_key != "" ? [1] : []
+    content {
+      priority = 4000
+      action   = "redirect"
+      description = "Bot assessment via reCAPTCHA"
+
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = ["*"]
+        }
+      }
+
+      redirect_options {
+        type = "GOOGLE_RECAPTCHA"
+      }
+    }
+  }
+
+  rule {
+    priority = 2147483647
+    action   = "allow"
+    description = "Default allow"
+
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+  }
 }
-
-variable "enable_geo_blocking" {
-  type    = bool
-  default = true
-}
-
-variable "blocked_region_codes" {
-  type    = list(string)
-  default = []
-}
-
-variable "enable_rate_limit" {
-  type    = bool
-  default = true
-}
-
-variable "rate_limit_count" {
-  type    = number
-  default = 100
-}
-
-variable "rate_limit_interval_sec" {
-  type    = number
-  default = 60
-}
-
-variable "enable_waf_rules" {
-  type    = bool
-  default = true
-}
-
-variable "enable_bot_management" {
-  type    = bool
-  default = false
-}
-
-variable "recaptcha_redirect_site_key" {
-  type    = string
-  default = ""
-}
-
-
